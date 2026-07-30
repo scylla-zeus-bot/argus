@@ -83,6 +83,24 @@ func TestExtractTarZst_ExtractsTarArchive(t *testing.T) {
 	assert.Equal(t, content, got)
 }
 
+func TestIsTarZstName_ExactSuffixOnly(t *testing.T) {
+	tests := []struct {
+		logName string
+		want    bool
+	}{
+		{"schema-logs-a3f4208c.tar.zst", true},
+		{"schema-logs-a3f4208c.tar.zstd", true},
+		{"2026_07_28__14_22_21_539.chunk_01.sct-a3f4208c.log.zst", false},
+		// Contains ".tar." but does not end in a known tar-zst suffix — must
+		// not be routed to extractTarZst, which is zstd-only.
+		{"foo.tar.old.log.zst", false},
+		{"foo.tar.gz", false},
+	}
+	for _, tc := range tests {
+		assert.Equal(t, tc.want, isTarZstName(tc.logName), "logName=%q", tc.logName)
+	}
+}
+
 func TestExtractTarZst_RejectsBarePlainLog(t *testing.T) {
 	dest := t.TempDir()
 	// A full 512-byte tar header block is required before the tar reader

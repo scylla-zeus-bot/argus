@@ -17,13 +17,24 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// tarInfix identifies archives that must be tar-extracted (".tar.zst",
-// ".tar.gz", ...); any other log file (e.g. the bare zstd-compressed
-// ".log.zst" SCT runner log chunks) is a single file that only needs
-// decompressing. Matching on the infix rather than a single exact suffix
-// means adding support for another tar compression format only requires
-// changes inside extractTarZst, not here.
-const tarInfix = ".tar."
+// tarZstSuffixes are the known suffixes of zstd-compressed tar archives that
+// extractTarZst can actually decode; any other log file (e.g. the bare
+// zstd-compressed ".log.zst" SCT runner log chunks) is a single file that
+// only needs decompressing. This is an exact-suffix match, not a substring
+// match: extractTarZst hardcodes zstd decompression, so a name that merely
+// contains ".tar." (e.g. a plain log named "foo.tar.old.log.zst") must not
+// be routed here, and a genuinely different tar compression (".tar.gz")
+// would need its own decoder in extractTarZst before it could be added below.
+var tarZstSuffixes = [...]string{".tar.zst", ".tar.zstd"}
+
+func isTarZstName(logName string) bool {
+	for _, suffix := range tarZstSuffixes {
+		if strings.HasSuffix(logName, suffix) {
+			return true
+		}
+	}
+	return false
+}
 
 // ---------------------------------------------------------------------------
 // Parent command: run logs
@@ -162,7 +173,7 @@ If --dest is omitted the files are extracted into the current working directory.
 			return err
 		}
 
-		isTarArchive := strings.Contains(logName, tarInfix)
+		isTarArchive := isTarZstName(logName)
 
 		log.Debug().Str("run_id", runID).Str("log_name", logName).Str("dest", dest).Bool("is_tar_archive", isTarArchive).Msg("extracting log archive")
 
