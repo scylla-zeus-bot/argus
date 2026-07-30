@@ -38,11 +38,13 @@ func TestExtractPlainZst_WritesDecompressedFile(t *testing.T) {
 
 func TestExtractPlainZst_RejectsUnsafePath(t *testing.T) {
 	dest := t.TempDir()
-	compressed := zstCompress(t, []byte("data"))
 
-	err := extractPlainZst("../../etc/evil.log.zst", bytes.NewReader(compressed), dest)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsafe path")
+	for _, logName := range []string{"../../etc/evil.log.zst", "/etc/passwd.log.zst"} {
+		compressed := zstCompress(t, []byte("data"))
+		err := extractPlainZst(logName, bytes.NewReader(compressed), dest)
+		require.Error(t, err, "logName=%q", logName)
+		assert.Contains(t, err.Error(), "unsafe path")
+	}
 }
 
 func TestExtractPlainZst_RejectsEmptyOrBareSuffixName(t *testing.T) {

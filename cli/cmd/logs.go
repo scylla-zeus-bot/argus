@@ -17,10 +17,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// tarZstSuffix identifies archives that must be tar-extracted; any other log
-// file (e.g. the bare zstd-compressed ".log.zst" SCT runner log chunks) is a
-// single file that only needs decompressing.
-const tarZstSuffix = ".tar.zst"
+// tarInfix identifies archives that must be tar-extracted (".tar.zst",
+// ".tar.gz", ...); any other log file (e.g. the bare zstd-compressed
+// ".log.zst" SCT runner log chunks) is a single file that only needs
+// decompressing. Matching on the infix rather than a single exact suffix
+// means adding support for another tar compression format only requires
+// changes inside extractTarZst, not here.
+const tarInfix = ".tar."
 
 // ---------------------------------------------------------------------------
 // Parent command: run logs
@@ -159,19 +162,16 @@ If --dest is omitted the files are extracted into the current working directory.
 			return err
 		}
 
-		isTarArchive := strings.HasSuffix(logName, tarZstSuffix)
+		isTarArchive := strings.Contains(logName, tarInfix)
 
 		log.Debug().Str("run_id", runID).Str("log_name", logName).Str("dest", dest).Bool("is_tar_archive", isTarArchive).Msg("extracting log archive")
-		if isTarArchive {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Extracting %s to %s\n", logName, dest)
-		} else {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Decompressing %s to %s\n", logName, dest)
-		}
 
 		var extractErr error
 		if isTarArchive {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Extracting %s to %s\n", logName, dest)
 			extractErr = extractTarZst(resp.Body, dest)
 		} else {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Decompressing %s to %s\n", logName, dest)
 			extractErr = extractPlainZst(logName, resp.Body, dest)
 		}
 		if extractErr != nil {
@@ -304,7 +304,7 @@ func extractPlainZst(logName string, r io.Reader, dest string) error {
 
 	outName := strings.TrimSuffix(logName, ".zst")
 	cleanName := filepath.Clean(outName)
-	if cleanName == "" || cleanName == "." {
+	if cleanName == "." {
 		return fmt.Errorf("log name %q is invalid", logName)
 	}
 	if !filepath.IsLocal(cleanName) {
